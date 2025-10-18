@@ -11,7 +11,7 @@
 
 // Constantes 
 #define NUM_PROCS_APP 5
-#define MAX_ITERATIONS 20
+#define MAX_ITERATIONS 10
 #define TIMESLICE_MS 500
 #define PROB_SYSCALL 15 // Probabilidade de 15% de gerar uma syscall
 #define P1_PROB 10   // Probabilidade de IRQ1
@@ -68,6 +68,7 @@ int display_status_flag = 0; // Flag para exibir o status
 // --- FUNÇÕES AUXILIARES E HANDLERS DE SINAL ---
 // Adiciona um PID ao final da fila de prontos
 void enqueue_ready(pid_t pid) {
+
     if (total_ready_processes < NUM_PROCS_APP) {
         ready_queue_processes[total_ready_processes++] = pid;
     }
@@ -213,7 +214,7 @@ void kernel_logic() {
         if (pid == 0) {
             close(syscall_pipe[0]);
             close(irq_pipe[0]); 
-            application_logic(i, &process_table[i]);
+            application_logic(i, process_table + i);
             close(irq_pipe[1]);
             exit(0);
         } else {
@@ -264,7 +265,7 @@ void kernel_logic() {
                         kill(process_table[current_running_idx].pid, SIGSTOP);
 
                         //Se o processo tiver terminado exatamente no timeslice, ele NÃO VAI para a fila de prontos
-                        if (process_table[current_running_idx].pc == MAX_ITERATIONS){
+                        if (process_table[current_running_idx].pc >= MAX_ITERATIONS){
                             process_table[current_running_idx].state = TERMINATED;
                             printf("[Kernel] Processo A%d (PID %d) terminou sua execução.\n", current_running_idx + 1, process_table[current_running_idx].pid);
                         }
@@ -342,7 +343,7 @@ void kernel_logic() {
                                 enqueue_ready(process_table[i].pid);
                                 //Retirando o processo da fila de bloqueados
                                 for (int j = 1; j <  d2_q_size; j++) {
-                                    blocked_queue_d1[j - 1] = blocked_queue_d1[j];
+                                    blocked_queue_d2[j - 1] = blocked_queue_d2[j];
                                 }
                                 d2_q_size--;
                                 break;
@@ -403,7 +404,8 @@ void kernel_logic() {
         }
         
         for (int i = 0; i < NUM_PROCS_APP; i++) {
-            if (process_table[i].state != TERMINATED && process_table[i].pc == MAX_ITERATIONS) {
+            printf("[Kernel] Total de iterações do processo A%d (PID %d): %d/%d\n", i + 1, process_table[i].pid, process_table[i].pc, MAX_ITERATIONS);
+            if (process_table[i].state != TERMINATED && process_table[i].pc >= MAX_ITERATIONS) {
                 process_table[i].state = TERMINATED;
                 printf("[Kernel] Processo A%d (PID %d) terminou sua execução.\n", i + 1, process_table[i].pid);
                 all_processes_terminated++;
