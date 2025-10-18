@@ -364,7 +364,7 @@ void kernel_logic() {
         if (bytes_read > 0) { // Recebeu uma syscall
             kill(syscall_req.pid, SIGSTOP);
             printf("[Kernel] Recebeu syscall do PID %d (PC=%d).\n", syscall_req.pid, syscall_req.pc);
-            dequeue_ready();
+
             
             for (int i = 0; i < NUM_PROCS_APP; i++) {
                 if (process_table[i].pid == syscall_req.pid) { // Encontra o processo que fez a syscall
@@ -388,6 +388,7 @@ void kernel_logic() {
                     }
 
                     if (next_proc_idx != -1) { // Encontrou um processo pronto
+                        dequeue_ready();
                         current_running_idx = next_proc_idx;
                         process_table[current_running_idx].state = RUNNING;
                         kill(process_table[current_running_idx].pid, SIGCONT);
