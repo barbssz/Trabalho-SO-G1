@@ -152,8 +152,6 @@ void application_logic(int id, PCB *proc_PCB) {
     
     
     while (pc < MAX_ITERATIONS) {
-        pc++;
-        proc_PCB->pc++; // Atualiza o PC no PCB
         sleep(1);
         random_n = rand() % 100;
         InterruptType message_to_irq = -1;
@@ -172,6 +170,8 @@ void application_logic(int id, PCB *proc_PCB) {
             sleep(0.5); // espera o kernel reagir e bloquar esse processo
     
         }
+        pc++;
+        proc_PCB->pc++; // Atualiza o PC no PCB
         printf("[App %d - PID %d] Iteração %d de %d concluída.\n", id + 1, getpid(), pc, MAX_ITERATIONS);
     }
      printf("[App %d - PID %d] Terminou a execução.\n", id+1, getpid());
@@ -222,7 +222,7 @@ void kernel_logic() {
             process_table[i].pc = 0;
             process_table[i].d1_access_count = 0;
             process_table[i].d2_access_count = 0;
-            enqueue_ready(pid);
+            ready_queue_processes[total_ready_processes++] = pid;
             printf("[Kernel] Processo de aplicação A%d criado com PID %d e adicionado à fila de prontos.\n", i + 1, pid);
         }
     }
@@ -243,14 +243,14 @@ void kernel_logic() {
     }
 
     while (1) {
-
+        /*
         //PARTE CTRL  C ERRADA
         if (display_status_flag) {
             display_process_status();
             display_status_flag = 0;
             pause();
             printf("\n[Kernel] Retomando a execução...\n");
-        }
+        }*/
 
         InterruptType received_irq;
         int bytes_read = read(irq_pipe[0], &received_irq, sizeof(InterruptType));
@@ -262,16 +262,25 @@ void kernel_logic() {
                     if (current_running_idx != -1 && process_table[current_running_idx].state == RUNNING)  {
 
                         kill(process_table[current_running_idx].pid, SIGSTOP);
-                        process_table[current_running_idx].state = READY;
-                        enqueue_ready(process_table[current_running_idx].pid); // coloca o processo que acabou de rodar no fim da fila
-                        
 
+                        //Se o processo tiver terminado exatamente no timeslice, ele NÃO VAI para a fila de prontos
+                        if (process_table[current_running_idx].pc == MAX_ITERATIONS){
+                            process_table[current_running_idx].state = TERMINATED;
+                            printf("[Kernel] Processo A%d (PID %d) terminou sua execução.\n", current_running_idx + 1, process_table[current_running_idx].pid);
+                        }
+
+                        else{ // Adiciona o processo de volta na fila de prontos
+                            process_table[current_running_idx].state = READY;
+                            enqueue_ready(process_table[current_running_idx].pid);
+                        }
+                        
                         printf("[Kernel] Timeslice! Processo A%d (PID %d) foi interrompido.\n", current_running_idx + 1, process_table[current_running_idx].pid);
                         printf("Apos\n");
                         for(int i = 0; i < total_ready_processes; i++){
                             printf("Fila de prontos: PID %d\n", ready_queue_processes[i]);
                         }
                         //Descobrir a posição do próximo processo pronto na tabela de processos
+                        current_running_idx = -1;
                         for (int i = 0; i < NUM_PROCS_APP; i++){
                             if (process_table[i].pid == ready_queue_processes[0]){
                                 current_running_idx = i;
@@ -279,12 +288,17 @@ void kernel_logic() {
                             }
                         }
 
-
-                        dequeue_ready(); // remove o processo que será executado da fila de prontos
-                        process_table[current_running_idx].state = RUNNING;
-                        kill(process_table[current_running_idx].pid, SIGCONT);
-                        printf("[Kernel] Contexto trocado para o processo A%d (PID %d).\n", current_running_idx + 1, process_table[current_running_idx].pid);
-            
+                        if (current_running_idx == -1){
+                            printf("[Kernel] Nenhum processo na fila de prontos para executar.\n");
+                            break;
+                        }
+                        else{
+                            dequeue_ready(); // remove o processo que será executado da fila de prontos
+                            process_table[current_running_idx].state = RUNNING;
+                            kill(process_table[current_running_idx].pid, SIGCONT);
+                            printf("[Kernel] Contexto trocado para o processo A%d (PID %d).\n", current_running_idx + 1, process_table[current_running_idx].pid);
+                        }
+                
                     }
                     break;
                 }
