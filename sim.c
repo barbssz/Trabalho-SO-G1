@@ -84,6 +84,9 @@ typedef struct {
     int count_exec;
 
     int alive; // se o filho ainda existe (não reaproveitado)
+
+    int count_d1;
+    int count_d2;
 } PCB;
 
 // Filas para gerenciamento de PIDS
@@ -192,7 +195,7 @@ void set_nonblock(int fd){
 //A função fprintf é usada para imprimir no stderr,
 void print_status_table(){
     printf("\n===== STATUS (Kernel PID = %d) =====\n", getpid());
-    printf(" PID     | Name |   State   |  PC  | Blocked | Op   | R  W  X \n");
+    printf(" PID     | Name |   State   |  PC  | Blocked | Op   | R  W  X |  D1ACS  |  D2ACS  | \n");
     printf("--------------------------------------------------------------\n");
     for(int i=0;i<NUM_PROCS_APP;i++){
         PCB *p = &pcb[i];
@@ -202,7 +205,7 @@ void print_status_table(){
         } else {
             printf("%-7s | %-4s | ", "-", "-");
         }
-        printf("%-2d %-2d %-2d\n", p->count_read, p->count_write, p->count_exec);
+        printf("%-2d %-2d %-2d    %2d          %2d\n", p->count_read, p->count_write, p->count_exec, p->count_d1, p->count_d2);
     }
     printf(" ReadyQ size=%d | D1Q=%d | D2Q=%d\n", ready_q.size, blocked_d1_q.size, blocked_d2_q.size);
     printf("================================\n\n");
@@ -386,6 +389,8 @@ int main(void){
         pcb[i].blocked_op = -1;
         pcb[i].count_read = pcb[i].count_write = pcb[i].count_exec = 0;
         pcb[i].alive = false;
+        pcb[i].count_d1 = 0;
+        pcb[i].count_d2 = 0;
 
         pid_t p = fork();
         if(p < 0){
@@ -478,17 +483,20 @@ int main(void){
                             pcb[idx].count_write++;
                         else if(am.op == OP_EXEC) 
                             pcb[idx].count_exec++;
-
                         // Remove de running se era o atual
                         if(current_pid == am.pid){
                             current_pid = -1;
                         }
 
                         // coloca na fila do dispositivo
-                        if(am.device == DEVICE_D1) 
+                        if(am.device == DEVICE_D1) {
                             q_push(&blocked_d1_q, am.pid);
-                        else 
+                            pcb[idx].count_d1++;
+                        }
+                        else {
                             q_push(&blocked_d2_q, am.pid);
+                            pcb[idx].count_d2++;
+                        }
 
                         printf( "[Kernel] %s fez SYSCALL %s em %s, agora BLOQUEADO\n", pcb[idx].name, op_str(am.op), dev_str(am.device));
                         
