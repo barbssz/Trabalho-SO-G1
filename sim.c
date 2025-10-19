@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h> // fork(), pipe(), read(), write(), close()
-#include <signal.h> // signal, kill(), raise()
+#include <signal.h> // signal(), kill()
 #include <sys/wait.h> // waitpid()
 #include <time.h> //  time()
 #include <string.h> // strcpy()
